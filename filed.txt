@@ -1,0 +1,86 @@
+
+
+
+API for process payment using 3 payment gateways
+=================================================
+
+
+
+class ProcessPayment(MethodView):
+    """payment process for different gateways"""
+    def post(self):
+        try:
+            """required params"""
+            card_number = request.form.get('card_number', '').strip()
+            card_holder = request.form.get('card_holder', '').strip()
+            expiry_date = request.form.get('expiry_date', '').strip()
+            security_code = request.form.get('security_code', '').strip()
+            amount = request.form.get('amount', '').strip()
+
+            required_params = (card_number, card_holder, expiry_date, amount)
+            if not all(required_params):
+                return dict(message="required parameters are missing",
+                            code=404)
+
+            if request.method != 'POST':
+                return dict(message="bad request, request is invalid",
+                            code=400)
+
+            global lst
+            n = card_number
+            if len(n) != 16:
+                return dict(message="please provide 16 digit card number only",
+                            code=101)
+            lst = []
+            for i in range(len(n)):
+                lst.append(n[i])
+            if len(lst) == 16:
+                for i in range(0, len(lst)):
+                    lst[i] = int(lst[i])
+                last = lst[15]
+                first = lst[:15]
+                first = first[::-1]
+                for i in range(len(first)):
+                    if i % 2 == 0:
+                        first[i] = first[i] * 2
+                    if first[i] > 9:
+                        first[i] -= 9
+                sum_all = sum(first)
+                t1 = sum_all % 10
+                t2 = t1 + last
+                if t2 % 10 != 0:
+                    return dict(message="Invalid credit card",
+                                code=102)
+
+            date_time_obj = datetime.strptime(expiry_date, '%Y-%m-%d')
+            if date_time_obj < datetime.now():
+                return dict(message="expiry date cannot be of past",
+                            code=103)
+
+            if len(security_code) != 3:
+                return dict(message="please provide 3 digit security code only",
+                            code=104)
+
+            if float(amount) < 0.0:
+                return dict(message="amount should not be less than zero",
+                            code=105)
+
+            if float(amount) < 20.0:
+                return dict(message="use CheapPaymentGateway",
+                            code=200)
+
+            if 21.0 <= float(amount) <= 500.0:
+                return dict(message="use ExpensivePaymentGateway",
+                            code=200)
+
+            if float(amount) > 500.0:
+                premium_payment_try_count = 0 # db column to check PremiumPaymentGateway have used 3 times
+                premium_payment_try_count = premium_payment_try_count + 1
+                if premium_payment_try_count <= 3:
+                    return dict(message="use PremiumPaymentGateway",
+                                code=200)
+
+        except Exception as e:
+            print(e)
+            return dict(message="internal server error",
+                        code=500)
